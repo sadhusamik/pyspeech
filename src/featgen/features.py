@@ -12,7 +12,7 @@ import numpy as np
 import scipy.linalg as lpc_solve
 import subprocess
 import os
- 
+import sys
 
 def dict2Ark(feat_dict,outfile,kaldi_cmd):
     with open(outfile+'.txt','w+') as file:
@@ -22,44 +22,42 @@ def dict2Ark(feat_dict,outfile,kaldi_cmd):
     subprocess.run(cmd, shell=True)
     os.remove(outfile+'.txt')   
     
-def ark2Dict(feat_dict,outfile,dim,kaldi_cmd):
-    #cmd=kaldi_cmd+ 'ark,scp:'+outfile+'.ark,'+outfile+'.scp'+' ark,t:'+outfile+'.txt'
-    #subprocess.run(cmd, shell=True)
+def ark2Dict(ark,dim,kaldi_cmd):
     
+    cmd=kaldi_cmd+ ' ark:'+ark+' ark,t:-'
+    proc=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
+    x=proc.stdout.decode('utf-8')
     feat_count=0
     start=0
     feats=np.empty((0,dim))
     all_feats={}
-    
-    with open(outfile+'.txt','r') as file:
-        for line in file: 
-            
-            line=file.readline()
-            line=line.strip().split()
-            if len(line)>1:
-                if line[-1]=='[':
-                    start=1
-                    feat_count+=1 #Starting of a feature       
-                    uttname=line[0]
+    fcount=0;
+    for line in x.splitlines(): 
+
+        line=line.strip().split()
+        if len(line)>=1:
+            if line[-1]=='[':
+                start=1
+                feat_count+=1 #Starting of a feature       
+                uttname=line[0]
+                feats=np.empty((0,dim))
+                fcount+=1;
+            if start==1 and line[-1]!='[':
+                if line[-1]==']':
+                    line=line[0:-1]
+                    x=np.array(line).astype(np.float)
+                    x=np.reshape(x,(1,len(x)))
+
+                    feats=np.concatenate((feats,x),axis=0)
+                    all_feats[uttname]=feats
+                    # Refresh everything 
+                    start=0
                     feats=np.empty((0,dim))
-                    print('Found a sentence %s' % uttname)
-                if start==1 and line[-1]!='[':
-                    if line[-1]==']':
-                        line=line[0:-1]
-                        x=np.array(line).astype(np.float)
-                        x=np.reshape(x,(1,len(x)))
-                        
-                        feats=np.concatenate((feats,x),axis=0)
-                        all_feats[uttname]=feats
-                        
-                        # Refresh everything 
-                        start=0
-                        feats=np.empty((0,dim))
-                    else:
-                        x=np.array(line).astype(np.float)
-                        x=np.reshape(x,(1,len(x)))
-                        feats=np.concatenate((feats,x),axis=0)
-            
+                else:
+                    x=np.array(line).astype(np.float)
+                    x=np.reshape(x,(1,len(x)))
+                    feats=np.concatenate((feats,x),axis=0)
+    print('%s: Tranfered %d utterances from ark to dict' % (sys.argv[0],fcount))  
     return all_feats
 
 def addReverb(sig,reverb):

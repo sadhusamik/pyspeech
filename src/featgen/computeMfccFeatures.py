@@ -73,9 +73,19 @@ def extractMelEnergyFeats(args, srate=16000,
             sys.stdout.flush()
          
             if inwav[-1] == '|':
-                proc = subprocess.run(inwav[:-1], shell=True,
-                                      stdout=subprocess.PIPE)
-                sr, signal = read(io.BytesIO(proc.stdout))
+                proc = subprocess.run(inwav[:-1], shell=True,stdout=subprocess.PIPE)
+                if inwav[0:6]=='ffmpeg':
+                    riff_chunk_size=len(proc.stdout)-8
+                    q=riff_chunk_size
+                    b=[]
+                    for i in range(4):
+                        q, r = divmod(q,256)
+                        b.append(r)
+
+                    riff=proc.stdout[:4]+bytes(b)+proc.stdout[8:]
+                    sr, signal = read(io.BytesIO(riff))
+                else:
+                    sr, signal = read(io.BytesIO(proc.stdout))
             else:
                 sr, signal = read(inwav)
             assert sr == srate, 'Input file has different sampling rate.'
